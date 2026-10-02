@@ -46,7 +46,7 @@ function O(): Glyph {
   return {
     width: W,
     outline: ellipse(W / 2, 0.5, W / 2, 0.5, 72, false),
-    holes: [ellipse(W / 2, 0.5, W / 2 - S, 0.5 - S, 56, true)],
+    holes: [ellipse(W / 2, 0.5, W / 2 - S, 0.5 - S, 56, false)],
     extra: [],
   }
 }

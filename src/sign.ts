@@ -2,12 +2,14 @@ import * as THREE from 'three'
 import { WORD, glyphFor, type Ring } from './glyphs'
 import { terrainHeight, SIGN_BASELINE } from './terrain'
 
-const LETTER_HEIGHT = 15.2
+const LETTER_HEIGHT = 17.6
+const LETTER_GAP = 2.7
 
-function ringToPath(ring: Ring, clockwiseHole: boolean): THREE.Path {
-  const path = clockwiseHole ? new THREE.Path() : new THREE.Shape()
-  path.moveTo(ring[0][0], ring[0][1])
-  for (let i = 1; i < ring.length; i++) path.lineTo(ring[i][0], ring[i][1])
+function ringToPath(ring: Ring, asHole: boolean): THREE.Path {
+  const pts = asHole ? [...ring].reverse() : ring
+  const path = asHole ? new THREE.Path() : new THREE.Shape()
+  path.moveTo(pts[0][0], pts[0][1])
+  for (let i = 1; i < pts.length; i++) path.lineTo(pts[i][0], pts[i][1])
   path.closePath()
   return path
 }
@@ -27,10 +29,7 @@ function extrudeRing(outline: Ring, holes: Ring[]): THREE.ExtrudeGeometry {
   return new THREE.ExtrudeGeometry(shape, EXTRUDE)
 }
 
-function letterObject(
-  ch: string,
-  materials: THREE.Material[],
-): { object: THREE.Group; width: number } {
+function letterObject(ch: string, material: THREE.Material): { object: THREE.Group; width: number } {
   const g = glyphFor(ch)
   const geos = [extrudeRing(g.outline, g.holes), ...g.extra.map((ring) => extrudeRing(ring, []))]
   let minX = Infinity
@@ -50,59 +49,12 @@ function letterObject(
   geos.forEach((geo, index) => {
     // The second half of W sits a centimeter forward so the shared peak does not flicker.
     geo.translate(-minX, -minY, -minZ + (index > 0 ? 0.012 : 0))
-    const mesh = new THREE.Mesh(geo, materials)
+    const mesh = new THREE.Mesh(geo, material)
     mesh.castShadow = true
     mesh.receiveShadow = true
     object.add(mesh)
   })
   return { object, width: maxX - minX }
-}
-
-function paintTexture(): THREE.CanvasTexture {
-  const c = document.createElement('canvas')
-  c.width = 512
-  c.height = 512
-  const g = c.getContext('2d')!
-  g.fillStyle = '#f3f0e8'
-  g.fillRect(0, 0, 512, 512)
-  const img = g.getImageData(0, 0, 512, 512)
-  const d = img.data
-  for (let y = 0; y < 512; y++) {
-    const streak = Math.sin(y * 0.37) * 0.5 + Math.sin(y * 0.11 + 2) * 0.5
-    for (let x = 0; x < 512; x++) {
-      const i = (y * 512 + x) * 4
-      const n = Math.sin(x * 12.1 + y * 4.7) * Math.sin(x * 0.2 + y * 0.7)
-      const grime = (n * 0.5 + 0.5) * 18 + streak * 8
-      const edge = x < 18 || x > 494 || y < 18 || y > 494 ? 22 : 0
-      d[i] = Math.max(0, d[i] - grime - edge)
-      d[i + 1] = Math.max(0, d[i + 1] - grime * 0.95 - edge)
-      d[i + 2] = Math.max(0, d[i + 2] - grime * 0.7 - edge)
-    }
-  }
-  g.putImageData(img, 0, 0)
-  const tex = new THREE.CanvasTexture(c)
-  tex.colorSpace = THREE.SRGBColorSpace
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping
-  tex.anisotropy = 4
-  return tex
-}
-
-function roughnessTexture(): THREE.CanvasTexture {
-  const c = document.createElement('canvas')
-  c.width = 256
-  c.height = 256
-  const g = c.getContext('2d')!
-  const img = g.createImageData(256, 256)
-  for (let i = 0; i < img.data.length; i += 4) {
-    const v = 150 + Math.floor(Math.random() * 70)
-    img.data[i] = img.data[i + 1] = img.data[i + 2] = v
-    img.data[i + 3] = 255
-  }
-  g.putImageData(img, 0, 0)
-  const tex = new THREE.CanvasTexture(c)
-  tex.colorSpace = THREE.NoColorSpace
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping
-  return tex
 }
 
 export type SignBuild = {
@@ -111,41 +63,28 @@ export type SignBuild = {
 }
 
 export function createSign(): SignBuild {
-  const faceMap = paintTexture()
-  const roughMap = roughnessTexture()
-  const face = new THREE.MeshPhysicalMaterial({
-    map: faceMap,
-    roughnessMap: roughMap,
-    color: 0xfff6ee,
-    roughness: 0.46,
-    metalness: 0.05,
-    clearcoat: 0.22,
-    clearcoatRoughness: 0.42,
-    sheen: 0.45,
-    sheenColor: new THREE.Color(0xffb27a),
-    sheenRoughness: 0.55,
-  })
-  const side = new THREE.MeshStandardMaterial({
-    color: 0xc9c2b4,
-    roughness: 0.72,
-    metalness: 0.08,
-  })
-  const back = new THREE.MeshStandardMaterial({
-    color: 0xb7b0a3,
-    roughness: 0.8,
-    metalness: 0.06,
+  // One material for every extrude group so the faces stay white from any angle.
+  // A modest emissive keeps the south faces bright while the sun rakes the ridge.
+  const paint = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 0.82,
+    metalness: 0.0,
+    emissive: 0xfff6ee,
+    emissiveIntensity: 0.22,
+    side: THREE.DoubleSide,
   })
   const steel = new THREE.MeshStandardMaterial({
     color: 0x2c2926,
     roughness: 0.48,
     metalness: 0.72,
+    side: THREE.DoubleSide,
   })
 
   const group = new THREE.Group()
   group.name = 'sign'
 
-  const built = WORD.map((ch) => letterObject(ch, [face, back, side]))
-  const gap = 2.45
+  const built = WORD.map((ch) => letterObject(ch, paint))
+  const gap = LETTER_GAP
   const total = built.reduce((a, b) => a + b.width, 0) + gap * (built.length - 1)
   let cursor = -total / 2
 
@@ -155,7 +94,6 @@ export function createSign(): SignBuild {
     const dx = cursor + w / 2
     letter.object.position.x = cursor
     letter.object.position.z = -(dx * dx) * 0.00028
-    letter.object.rotation.y = -dx * 0.0011
     letter.object.name = `letter-${WORD[i]}-${i}`
     group.add(letter.object)
     placed.push({ x: dx, w })
@@ -163,6 +101,10 @@ export function createSign(): SignBuild {
   })
 
   group.position.y = SIGN_BASELINE
+  // The south-facing camera looks along +Z. Its right-handed basis puts west on
+  // screen-right, which would spell the word backwards. Mirroring X cancels that
+  // so H is on the left and the L stems face the correct way.
+  group.scale.x = -1
 
   const postGeo = new THREE.BoxGeometry(0.42, 1, 0.42)
   const braceGeo = new THREE.BoxGeometry(1, 0.28, 0.28)

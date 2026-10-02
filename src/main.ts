@@ -57,6 +57,10 @@ scene.add(new THREE.HemisphereLight(0xffb48a, 0x2a2038, 0.55))
 const fill = new THREE.DirectionalLight(0x8ea0c4, 0.38)
 fill.position.set(20, 50, -180)
 scene.add(fill)
+// The sun rakes the ridge from the west and leaves the south faces in shade.
+const signLight = new THREE.DirectionalLight(0xfff8f2, 1.85)
+signLight.position.set(10, 96, -160)
+scene.add(signLight)
 
 const sky = createSky()
 const envScene = new THREE.Scene()
@@ -101,12 +105,22 @@ const blend = { active: false, t: 0, duration: 1.35, fromPos: new THREE.Vector3(
 const sunWorld = new THREE.Vector3()
 const ndc = new THREE.Vector3()
 
+function framedFov(baseFov: number) {
+  // Keyframes are tuned for 16:9. On a portrait screen the vertical fov would
+  // crop the word, so widen it until the horizontal coverage matches.
+  const wide = 16 / 9
+  if (camera.aspect >= wide) return baseFov
+  const halfH = Math.atan(Math.tan(THREE.MathUtils.degToRad(baseFov) / 2) * wide)
+  return THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(halfH) / Math.max(0.35, camera.aspect)))
+}
+
 function applyFlight(time: number) {
   const pose = sampleFlight(time)
   camera.position.copy(pose.position)
   camera.quaternion.copy(pose.quaternion)
-  if (Math.abs(camera.fov - pose.fov) > 0.02) {
-    camera.fov = pose.fov
+  const fov = framedFov(pose.fov)
+  if (Math.abs(camera.fov - fov) > 0.02) {
+    camera.fov = fov
     camera.updateProjectionMatrix()
   }
 }
@@ -233,7 +247,7 @@ function frame(now: number) {
     const pose = sampleFlight(flightTime)
     camera.position.lerpVectors(blend.fromPos, pose.position, k)
     camera.quaternion.slerpQuaternions(blend.fromQuat, pose.quaternion, k)
-    camera.fov = blend.fromFov + (pose.fov - blend.fromFov) * k
+    camera.fov = blend.fromFov + (framedFov(pose.fov) - blend.fromFov) * k
     camera.updateProjectionMatrix()
     if (k >= 1) blend.active = false
   } else {

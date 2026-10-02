@@ -12,21 +12,21 @@ type Key = {
 }
 
 /**
- * The first three seconds ride the face of the sign into the sun,
- * then open onto the basin. Times are seconds.
+ * Every key looks at the south face of the sign. The word is about 150m wide,
+ * so the camera stays far enough south that all nine letters fit, including
+ * the wide passes. Times are seconds.
  */
 const keys: Key[] = [
-  { t: 0, p: [84, 72, -11], l: [-16, 76, -10], fov: 30, roll: 8 },
-  { t: 1.05, p: [34, 77, -20], l: [-4, 73, -4], fov: 36, roll: -1 },
-  { t: 2.15, p: [-6, 92, -44], l: [6, 68, -12], fov: 46, roll: -5 },
-  { t: 3.2, p: [14, 132, -118], l: [0, 56, -36], fov: 55, roll: 2 },
-  { t: 9, p: [-62, 138, -130], l: [12, 62, -20], fov: 48, roll: -6 },
-  { t: 16, p: [24, 168, -48], l: [-10, 48, -240], fov: 56, roll: 7 },
-  { t: 25, p: [-110, 210, -340], l: [90, 36, -640], fov: 60, roll: -3 },
-  { t: 34, p: [150, 156, -200], l: [-30, 64, -30], fov: 50, roll: 5 },
-  { t: 43, p: [-20, 86, -36], l: [16, 72, 2], fov: 36, roll: -7 },
-  { t: 48.5, p: [62, 74, -16], l: [4, 74, -8], fov: 32, roll: 4 },
-  { t: FLIGHT_DURATION, p: [84, 72, -11], l: [-16, 76, -10], fov: 30, roll: 8 },
+  { t: 0, p: [18, 86, -128], l: [0, 72, 0], fov: 54, roll: 3.5 },
+  { t: 1.5, p: [-6, 94, -142], l: [2, 71, 0], fov: 54, roll: -1.5 },
+  { t: 3.2, p: [-28, 108, -168], l: [0, 70, 1], fov: 52, roll: -3 },
+  { t: 9, p: [-78, 124, -188], l: [6, 70, 0], fov: 52, roll: -4 },
+  { t: 16, p: [16, 148, -156], l: [0, 68, 2], fov: 54, roll: 3 },
+  { t: 25, p: [96, 136, -196], l: [-8, 70, 0], fov: 52, roll: 4 },
+  { t: 34, p: [-24, 112, -176], l: [8, 71, 0], fov: 50, roll: -2.5 },
+  { t: 43, p: [42, 92, -134], l: [-2, 72, 0], fov: 52, roll: 2 },
+  { t: 48.5, p: [28, 86, -124], l: [0, 72, 0], fov: 54, roll: 3 },
+  { t: FLIGHT_DURATION, p: [18, 86, -128], l: [0, 72, 0], fov: 54, roll: 3.5 },
 ]
 
 function catmull(a: number, b: number, c: number, d: number, t: number) {
@@ -46,7 +46,10 @@ const pose = {
   fov: 40,
 }
 const look = new THREE.Vector3()
-const rig = new THREE.Object3D()
+// Camera.lookAt, not Object3D.lookAt. A plain object aims +Z at the target;
+// copying that quaternion onto the shot camera (which looks down -Z) faced
+// the lens away from the hillside for the entire flyover.
+const rig = new THREE.PerspectiveCamera()
 
 export function sampleFlight(time: number) {
   const dur = FLIGHT_DURATION
